@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route Optimization · Graph Theory</title>
+<style>
+:root{--ink:#172a30;--muted:#52646b;--line:#d9e0df;--green:#14634d;--paper:#f4f6f3;--gold:#fff0bd}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1240px;margin:auto;padding:28px 24px 48px}header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:24px}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);font-weight:700}
+h1{font-size:clamp(28px,4vw,42px);letter-spacing:-.04em;line-height:1.15;margin:10px 0}h2{font-size:19px;margin:0 0 12px}h3{font-size:15px;margin:16px 0 8px}
+p{margin:8px 0}.muted,small{color:var(--muted)}.workspace{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start}
+.panel{background:white;border:1px solid var(--line);border-radius:8px;padding:20px;min-width:0}.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.between{justify-content:space-between;align-items:center}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;flex:1;min-width:90px}input,select,button{font:inherit;border:1px solid #a8b7b6;border-radius:4px;padding:9px 10px;max-width:100%;background:white;color:var(--ink)}
+input,select{width:100%}button{cursor:pointer;font-size:13px;font-weight:600}button:hover:not(:disabled){background:#edf3ef}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover:not(:disabled){background:#0c4d3a}
+button:disabled{opacity:.45;cursor:default}:focus-visible{outline:3px solid #246caa;outline-offset:3px}form{margin-top:12px}.controls{margin-top:15px;display:flex;flex-wrap:wrap;gap:8px}.divider{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+#graph{width:100%;display:block;background:#f8faf8;border:1px solid #e6ebe7;border-radius:4px;margin:12px 0}svg text{font:13px system-ui,sans-serif;fill:var(--ink)}.edge{stroke:#7c9090;stroke-width:1.8;fill:none}.edge.optimal{stroke:var(--green);stroke-width:4}.edge.via{stroke:#845209;stroke-width:3}.known-path{stroke:#845209;stroke-width:2;stroke-dasharray:5 5;fill:none}
+.node{fill:white;stroke:#8c9e9d;stroke-width:2}.node.intermediate{fill:var(--gold);stroke:#845209;stroke-width:3}.node.endpoint{fill:#dcefe8;stroke:var(--green);stroke-width:3}
+#locations{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px}.legend{font-size:12px;color:var(--muted)}.legend span{margin-right:12px}.pill{border:1px solid #c9dcd2;background:#edf5ef;border-radius:4px;padding:3px 8px;font-size:12px;color:var(--green)}
+#status{min-height:24px;color:var(--muted);margin:12px 0}#status.error{color:#a22020}.operation{background:#f5f7f4;border-left:3px solid var(--green);padding:12px;margin:12px 0;min-height:150px;overflow-wrap:anywhere}.formula{font:14px/1.7 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}.metrics{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.metric{background:#f2f5f3;padding:5px 9px;font:13px ui-monospace,monospace}
+#route{font-weight:600;overflow-wrap:anywhere}progress{width:100%;height:9px;accent-color:var(--green)}.matrices{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:20px 0}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font:13px ui-monospace,Consolas,monospace;text-align:center}caption{text-align:left;color:var(--muted);padding-bottom:10px;font:13px system-ui,sans-serif}th,td{border:1px solid var(--line);min-width:34px;height:34px;padding:5px}th{background:#f0f4f1;font-weight:600}td.operand{background:#fff5d6}td.target{outline:2px solid #845209;outline-offset:-2px}td.changed{background:#cfe9dc;font-weight:bold}td.undefined{color:#a22020;background:#fff0ef}.explanation{display:grid;grid-template-columns:1fr 1fr;gap:24px}code{font:13px ui-monospace,Consolas,monospace}.footer{font-size:12px;color:var(--muted);margin-top:18px}
+@media(max-width:800px){.workspace,.matrices,.explanation{grid-template-columns:1fr}main{padding:18px 14px}.panel{padding:16px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">Discrete Mathematics / Interactive Lab</div>
+  <h1>Route optimization using graph theory</h1>
+  <p class="muted">Explore connectivity with Warshall, then find shortest routes with Floyd–Warshall.</p>
+  <div class="row"><span class="pill">Directed graphs</span><span class="pill">1–10 vertices</span><span class="pill">Algorithms computed in C</span></div>
+</header>
+<div class="workspace">
+<section class="panel" aria-labelledby="network-title">
+  <div class="row between"><h2 id="network-title">01 / City network</h2><button id="example" type="button">Load city example</button></div>
+  <p class="muted">Arrows are one-way roads. Add a reverse edge for a two-way road.</p>
+  <svg id="graph" viewBox="0 0 640 420" role="img" aria-label="Directed city network"></svg>
+  <div id="locations"></div>
+  <p class="legend"><span>Green: optimal route</span><span>Gold: intermediate / evaluated paths</span></p>
+  <form id="vertex-form" class="row divider">
+    <label>New location<input id="vertex-name" maxlength="24" placeholder="e.g. Library" required></label>
+    <button id="add-vertex" type="submit">Add vertex</button>
+  </form>
+  <div class="row" style="margin-top:12px"><label>Remove location<select id="remove-vertex"></select></label><button id="remove" type="button">Remove vertex</button></div>
+  <form id="edge-form" class="divider">
+    <div class="row">
+      <label>Road from<select id="edge-from"></select></label>
+      <label>Road to<select id="edge-to"></select></label>
+      <label>Distance / cost<input id="weight" type="number" min="-1000" max="1000" step="1" value="4" required></label>
+    </div>
+    <div class="controls"><button type="submit">Save road</button><button id="close-road" type="button">Close road</button></div>
+    <small>Integers −1000…1000. Zero is a valid edge. Negative values represent abstract costs, not physical distances.</small>
+  </form>
+</section>
+<section class="panel" aria-labelledby="algorithm-title">
+  <h2 id="algorithm-title">02 / Algorithm &amp; playback</h2>
+  <label>Algorithm<select id="algorithm"><option value="warshall">Warshall — reachability</option><option value="floyd">Floyd–Warshall — shortest paths</option></select></label>
+  <p id="recurrence" class="formula"></p>
+  <div class="metrics"><span class="metric">Time O(V³)</span><span class="metric">Working space O(V²)</span></div>
+  <div class="row"><label>Source<select id="source"></select></label><label>Destination<select id="destination"></select></label></div>
+  <div class="controls">
+    <button id="start" type="button" class="primary">Start</button><button id="pause" type="button">Pause</button>
+    <button id="previous" type="button">Previous Step</button><button id="next" type="button">Next Step</button><button id="reset" type="button">Reset</button>
+  </div>
+  <label style="margin-top:14px">Animation speed<select id="speed"><option value="1200">Slow · 1.2 s / step</option><option value="500" selected>Normal · 0.5 s / step</option><option value="100">Fast · 0.1 s / step</option></select></label>
+  <p id="status" role="status" aria-live="polite"></p>
+  <progress id="progress" value="0" max="1" aria-label="Algorithm progress"></progress>
+  <div id="operation" class="operation"></div>
+  <div class="divider"><h3>Selected route</h3><p id="route">Run an algorithm to inspect the selected pair.</p><p id="cycle-note" class="muted"></p></div>
+</section>
+</div>
+<div class="matrices">
+  <section class="panel"><h2>03 / Initial matrix</h2><div id="initial-matrix" class="table-wrap"></div></section>
+  <section class="panel"><h2 id="matrix-title">04 / Current matrix</h2><div id="current-matrix" class="table-wrap"></div><p class="legend">Outlined: evaluated cell · Gold: operands from the previous k stage · Green: changed value</p></section>
+</div>
+<section class="panel" aria-labelledby="math-title">
+  <h2 id="math-title">The mathematics</h2>
+  <div class="explanation">
+    <div><h3>Warshall: can we get there?</h3><p>Uses Boolean OR and AND to compute transitive closure. At stage k, a path from i to j exists if it already existed, or if i can reach k and k can reach j.</p><p>The initial matrix records edge presence, including zero-weight roads. Diagonal entries are 1: a vertex reaches itself by a zero-length path. This is <strong>reflexive transitive closure</strong>.</p></div>
+    <div><h3>Floyd–Warshall: what is the shortest route?</h3><p>Uses minimum and addition. At stage k, compare the previous distance with a route through k. A next-hop matrix reconstructs the route.</p><p>∞ means unreachable. A negative diagonal detects a negative cycle. Pairs that can travel through such a cycle have no finite shortest distance; their routes are suppressed.</p></div>
+  </div>
+  <p class="divider">Each stage reads the previous stage’s matrix. After stage k, paths may use vertices A through k as intermediates. Both algorithms take O(V³) time and O(V²) working space. Saving all V³ evaluations for playback takes an additional O(V³) space.</p>
+</section>
+<p class="footer">Road closures and distance changes clear old calculations. Reset rewinds playback; Load city example restores the original network. Graph labels correspond to matrix row and column labels.</p>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const letter = i => String.fromCharCode(65 + i);
+const display = value => value === null ? '∞' : String(value);
+let names = [], graph = [], result = null, cursor = 0, timer = null, generation = 0, loading = false;
+
+function pause() { clearInterval(timer); timer = null; }
+function message(text, error = false) { $('status').textContent = text; $('status').className = error ? 'error' : ''; }
+function invalidate(text = 'Graph updated. Press Start to calculate.') {
+  generation++; loading = false; pause(); result = null; cursor = 0;
+  message(text); render();
+}
+function fillSelectors() {
+  for (const id of ['remove-vertex','edge-from','edge-to','source','destination']) {
+    const select = $(id), old = select.value;
+    select.replaceChildren(...names.map((name, i) => new Option(`${letter(i)} · ${name}`, i)));
+    if (Number(old) < names.length) select.value = old;
+    if (select.selectedIndex < 0) select.selectedIndex = 0;
+  }
+  $('add-vertex').disabled = names.length >= 10;
+  $('remove').disabled = names.length <= 1;
+}
+function loadExample() {
+  names = ['College','Hospital','Railway Station','Airport','Shopping Mall'];
+  graph = names.map(() => names.map(() => null));
+  for (const [i,j,w] of [[0,1,4],[0,2,10],[1,2,3],[2,3,6],[1,4,5],[4,3,2],[3,0,12]]) graph[i][j] = w;
+  fillSelectors(); $('source').value = '0'; $('destination').value = '3'; $('edge-to').value = '1';
+  syncWeight(); invalidate('City example loaded. Choose an algorithm and press Start.');
+}
+function syncWeight() {
+  const weight = graph[Number($('edge-from').value)][Number($('edge-to').value)];
+  $('weight').value = weight === null ? '' : weight;
+}
+function currentMatrix() {
+  const matrix = result.initial.map(row => row.slice());
+  for (let p = 0; p < cursor; p++) {
+    const step = result.steps[p]; matrix[step.i][step.j] = step.value;
+  }
+  return matrix;
+}
+function drawMatrix(id, matrix, caption, step = null) {
+  const table = document.createElement('table');
+  const cap = table.createCaption(); cap.textContent = caption;
+  const head = table.createTHead().insertRow();
+  for (const text of ['↘', ...names.map((_, i) => letter(i))]) {
+    const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; head.append(th);
+  }
+  const body = table.createTBody();
+  matrix.forEach((row, i) => {
+    const tr = body.insertRow(), th = document.createElement('th');
+    th.textContent = letter(i); th.scope = 'row'; th.title = names[i]; tr.append(th);
+    row.forEach((value, j) => {
+      const td = tr.insertCell(); td.textContent = display(value);
+      td.title = `${names[i]} → ${names[j]}`;
+      if (step && ((i === step.i && j === step.k) || (i === step.k && j === step.j))) td.classList.add('operand');
+      if (step && i === step.i && j === step.j) td.classList.add('target', ...(step.changed ? ['changed'] : []));
+      if (id === 'current-matrix' && result && cursor === result.steps.length && result.affected?.[i][j]) {
+        td.textContent = '−∞'; td.classList.add('undefined'); td.title += ': no finite shortest distance (negative cycle)';
+      }
+    });
+  });
+  $(id).replaceChildren(table);
+}
+function svgElement(tag, attributes = {}, text = null) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key,value] of Object.entries(attributes)) element.setAttribute(key, value);
+  if (text !== null) element.textContent = text;
+  return element;
+}
+function drawGraph(step, route) {
+  const svg = $('graph'); svg.replaceChildren();
+  const defs = svgElement('defs');
+  for (const [id,color] of [['arrow','#7c9090'],['optimal-arrow','#14634d'],['via-arrow','#845209']]) {
+    const marker = svgElement('marker',{id,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});
+    marker.append(svgElement('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:color})); defs.append(marker);
+  }
+  svg.append(defs);
+  const points = names.map((_,i) => {
+    const angle = -Math.PI / 2 + i * 2 * Math.PI / names.length;
+    return names.length === 1 ? [320,210] : [320 + 200*Math.cos(angle),210 + 135*Math.sin(angle)];
+  });
+  const routeEdges = new Set();
+  if (route) for (let p = 1; p < route.length; p++) routeEdges.add(`${route[p-1]},${route[p]}`);
+  graph.forEach((row, i) => row.forEach((weight,j) => {
+    if (weight === null) return;
+    const [x,y] = points[i], [tx,ty] = points[j];
+    let path, lx, ly;
+    if (i === j) { path = `M ${x-16} ${y-17} C ${x-65} ${y-90} ${x+65} ${y-90} ${x+16} ${y-17}`; lx=x; ly=y-64; }
+    else {
+      const length = Math.hypot(tx-x,ty-y), ux=(tx-x)/length, uy=(ty-y)/length;
+      const bend = graph[j][i] === null ? 0 : 30;
+      const cx=(x+tx)/2 - uy*bend, cy=(y+ty)/2 + ux*bend;
+      path = `M ${x+ux*25} ${y+uy*25} Q ${cx} ${cy} ${tx-ux*29} ${ty-uy*29}`;
+      lx=(x+tx)/4+cx/2; ly=(y+ty)/4+cy/2;
+    }
+    const optimal = routeEdges.has(`${i},${j}`);
+    const via = step && ((i === step.i && j === step.k) || (i === step.k && j === step.j));
+    svg.append(svgElement('path',{d:path,class:`edge${optimal?' optimal':via?' via':''}`,'marker-end':`url(#${optimal?'optimal-arrow':via?'via-arrow':'arrow'})`}));
+    svg.append(svgElement('rect',{x:lx-22,y:ly-11,width:44,height:21,rx:3,fill:'white'}));
+    svg.append(svgElement('text',{x:lx,y:ly+4,'text-anchor':'middle'},String(weight)));
+  }));
+  if (step) {
+    for (const [a,b,value] of [[step.i,step.k,step.left],[step.k,step.j,step.right]]) {
+      const reachable = result.algorithm === 'warshall' ? value === 1 : value !== null;
+      if (!reachable || a === b || graph[a][b] !== null) continue;
+      const [x,y]=points[a], [tx,ty]=points[b], length=Math.hypot(tx-x,ty-y);
+      const line=svgElement('path',{d:`M ${x+(tx-x)*25/length} ${y+(ty-y)*25/length} L ${tx-(tx-x)*29/length} ${ty-(ty-y)*29/length}`,class:'known-path','marker-end':'url(#via-arrow)'});
+      line.append(svgElement('title',{},'Known path through earlier intermediate vertices; not a direct road.')); svg.append(line);
+    }
+  }
+  points.forEach(([x,y],i) => {
+    const group=svgElement('g'); group.append(svgElement('title',{},`${letter(i)}: ${names[i]}`));
+    group.append(svgElement('circle',{cx:x,cy:y,r:23,class:`node${step && i===step.k?' intermediate':step && (i===step.i||i===step.j)?' endpoint':''}`}));
+    group.append(svgElement('text',{x,y:y+5,'text-anchor':'middle','font-weight':700},letter(i))); svg.append(group);
+  });
+  $('locations').replaceChildren(...names.map((name,i) => {
+    const span=document.createElement('span'); span.textContent=`${letter(i)} · ${name}`; return span;
+  }));
+}
+function render() {
+  const warshall = $('algorithm').value === 'warshall';
+  $('recurrence').textContent = warshall ? 'Rᵏ[i][j] = Rᵏ⁻¹[i][j] OR (Rᵏ⁻¹[i][k] AND Rᵏ⁻¹[k][j])' : 'Dᵏ[i][j] = min(Dᵏ⁻¹[i][j], Dᵏ⁻¹[i][k] + Dᵏ⁻¹[k][j])';
+  const step = result && cursor ? result.steps[cursor-1] : null;
+  const finished = result && cursor === result.steps.length;
+  $('start').disabled = loading || timer !== null;
+  $('pause').disabled = timer === null;
+  $('next').disabled = !result || finished || loading;
+  $('previous').disabled = !result || cursor === 0 || loading;
+  $('reset').disabled = !result || loading;
+  $('progress').max = result ? result.steps.length : 1; $('progress').value = cursor;
+  $('matrix-title').textContent = finished ? '04 / Final matrix' : '04 / Current matrix';
+  const operation = $('operation'); operation.replaceChildren();
+  if (step) {
+    const heading=document.createElement('strong'); heading.textContent=`Step ${cursor} / ${result.steps.length} · k = ${letter(step.k)}, i = ${letter(step.i)}, j = ${letter(step.j)}`;
+    const formula=document.createElement('p'); formula.className='formula';
+    formula.textContent=warshall ? `${step.old} OR (${step.left} AND ${step.right}) = ${step.value}` : `min(${display(step.old)}, ${display(step.left)} + ${display(step.right)}) = ${display(step.value)}`;
+    const detail=document.createElement('p');
+    detail.textContent=`Previous value: ${display(step.old)}. Candidate via ${letter(step.k)}: ${display(step.candidate)}. Updated value: ${display(step.value)}. `;
+    detail.textContent+=step.changed ? (warshall ? `A path through ${letter(step.k)} establishes connectivity.` : `The route through ${letter(step.k)} has a smaller cost.`) : (warshall ? 'Reachability is unchanged.' : 'No strictly shorter route was found.');
+    const note=document.createElement('small'); note.textContent='Operands are read from the previous k stage. Dashed gold lines represent known indirect paths.';
+    operation.append(heading,formula,detail,note);
+  } else operation.textContent=result ? 'Initial matrix. Next Step evaluates k = A, i = A, j = A.' : 'Press Start to calculate in C and play each matrix operation.';
+  let path=null;
+  $('cycle-note').textContent='';
+  if (!result) $('route').textContent='Run an algorithm to inspect the selected pair.';
+  else if (!finished) $('route').textContent='Playback in progress. The selected-pair result appears after the final step.';
+  else {
+    const s=Number($('source').value), t=Number($('destination').value);
+    const pair=`${names[s]} → ${names[t]}`;
+    if (warshall) $('route').textContent=`${pair}: ${result.final[s][t] ? 'reachable' : 'unreachable'}. Run Floyd–Warshall for the shortest route.`;
+    else {
+      const cycles=result.affected.some(row=>row.some(Boolean));
+      $('cycle-note').textContent=cycles ? 'Negative cycle detected. Cells marked −∞ have no finite shortest distance. Other pairs remain valid.' : 'No negative-weight cycle detected.';
+      if (result.affected[s][t]) $('route').textContent=`${pair}: no finite shortest distance; a reachable negative cycle affects this pair.`;
+      else if (result.paths[s][t] === null) $('route').textContent=`${pair}: unreachable.`;
+      else { path=result.paths[s][t]; $('route').textContent=`${path.map(v=>names[v]).join(' → ')} · Total distance / cost: ${result.final[s][t]}`; }
+    }
+  }
+  if (result) {
+    drawMatrix('initial-matrix',result.initial,warshall?'Initial reachability (includes zero-length paths)':'Initial distances (∞ = no known path)');
+    drawMatrix('current-matrix',currentMatrix(),finished?'All intermediate vertices processed':`After ${cursor} / ${result.steps.length} operations`,step);
+  } else {
+    drawMatrix('initial-matrix',graph,'Input adjacency matrix (∞ = no edge)');
+    $('current-matrix').textContent='Run an algorithm to display its matrix.';
+  }
+  drawGraph(step,path);
+}
+function advance() {
+  if (!result || cursor >= result.steps.length) return;
+  cursor++;
+  if (cursor === result.steps.length) { pause(); message('Complete. Inspect the final matrix and selected route.'); }
+  else if (cursor % (names.length*names.length) === 0) message(`Stage k = ${letter(result.steps[cursor-1].k)} complete.`);
+  else message(`Evaluating intermediate vertex ${letter(result.steps[cursor-1].k)}.`);
+  render();
+}
+function play() {
+  pause();
+  if (cursor === result.steps.length) cursor=0;
+  timer=setInterval(advance,Number($('speed').value));
+  message('Playing. Pause to inspect an operation.'); render();
+}
+$('start').onclick=async () => {
+  if (result) { play(); return; }
+  const version=++generation; loading=true; render(); message('Calculating in C…');
+  try {
+    const response=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({algorithm:$('algorithm').value,matrix:graph})});
+    const data=await response.json();
+    if (version !== generation) return;
+    if (!response.ok) throw new Error(data.error || 'Calculation failed.');
+    result=data; cursor=0; loading=false; play();
+  } catch (error) {
+    if (version !== generation) return;
+    loading=false; message(`Cannot calculate: ${error.message}. Start the local server and check compilation.`,true); render();
+  }
+};
+$('pause').onclick=()=>{pause();message('Paused. Use Next Step or Previous Step to inspect.');render();};
+$('next').onclick=()=>{pause();advance();};
+$('previous').onclick=()=>{pause();if(cursor>0)cursor--;message('Stepped backward.');render();};
+$('reset').onclick=()=>{pause();cursor=0;message('Reset to the initial matrix.');render();};
+$('speed').onchange=()=>{if(timer!==null)play();};
+$('algorithm').onchange=()=>invalidate('Algorithm changed. Press Start to calculate.');
+for (const id of ['source','destination']) $(id).onchange=render;
+for (const id of ['edge-from','edge-to']) $(id).onchange=syncWeight;
+$('example').onclick=loadExample;
+$('vertex-form').onsubmit=event=>{
+  event.preventDefault(); const name=$('vertex-name').value.trim();
+  if (!name || name.length>24 || names.length>=10) {message('Use a location name of 1–24 characters; maximum 10 vertices.',true);return;}
+  if (names.some(existing=>existing.toLowerCase()===name.toLowerCase())) {message('Use a distinct location name.',true);return;}
+  names.push(name);graph.forEach(row=>row.push(null));graph.push(names.map(()=>null));
+  $('vertex-name').value='';fillSelectors();syncWeight();invalidate();
+};
+$('remove').onclick=()=>{
+  if(names.length<=1)return;
+  const index=Number($('remove-vertex').value);names.splice(index,1);graph.splice(index,1);graph.forEach(row=>row.splice(index,1));
+  fillSelectors();syncWeight();invalidate();
+};
+$('edge-form').onsubmit=event=>{
+  event.preventDefault();const value=$('weight').value.trim(), weight=Number(value);
+  if(!value || !Number.isInteger(weight) || weight < -1000 || weight > 1000){message('Enter an integer weight from −1000 to 1000.',true);return;}
+  graph[Number($('edge-from').value)][Number($('edge-to').value)]=weight;invalidate();
+};
+$('close-road').onclick=()=>{graph[Number($('edge-from').value)][Number($('edge-to').value)]=null;syncWeight();invalidate('Road closed. Press Start to recalculate.');};
+loadExample();
+</script>
+</body>
+</html>
